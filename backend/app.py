@@ -34,6 +34,7 @@ from services.validation_service import (
 )
 from services.ml_predictor import (
     predict_diabetes_risk,
+    predict_diabetes_risk_with_explanation,
     get_prediction_thresholds,
     get_input_requirements,
     check_model_status,
@@ -538,6 +539,39 @@ def feature_importance():
         result = get_feature_importance()
         return jsonify(result)
     except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/predict-risk/explain', methods=['POST'])
+def predict_risk_with_explanation():
+    """
+    Predict diabetes risk with SHAP-based explanation and confidence interval.
+
+    Same input as /api/predict-risk, but response includes:
+    - explanation: SHAP feature contributions with plain English summaries
+    - confidence_interval: prediction uncertainty range from RF tree variance
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "No JSON data provided"
+            }), 400
+
+        result = predict_diabetes_risk_with_explanation(data)
+
+        if not result.get('success'):
+            return jsonify(result), 400
+
+        return jsonify(result)
+
+    except Exception as e:
+        app.logger.error(f"Explanation error: {e}")
         return jsonify({
             "success": False,
             "error": str(e)
