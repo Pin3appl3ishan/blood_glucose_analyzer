@@ -1,0 +1,123 @@
+
+================================================================================
+                    MACHINE LEARNING MODEL TRAINING REPORT
+                    Blood Glucose Analyzer - Diabetes Prediction
+================================================================================
+
+Date: 2026-02-03 21:41:28
+
+1. DATASET INFORMATION
+----------------------
+- Dataset: PIMA Indians Diabetes Dataset
+- Source: UCI Machine Learning Repository
+- Total Samples: 768
+- Features: 8
+- Target: Binary (0 = No Diabetes, 1 = Diabetes)
+- Class Distribution: ~65% Negative, ~35% Positive (imbalanced)
+
+2. FEATURES USED
+----------------
+   1. Pregnancies
+   2. Glucose
+   3. BloodPressure
+   4. SkinThickness
+   5. Insulin
+   6. BMI
+   7. DiabetesPedigreeFunction
+   8. Age
+
+3. PREPROCESSING STEPS
+----------------------
+- Zero Value Handling: Replaced biologically impossible zeros in
+  Glucose, BloodPressure, and BMI with median values
+- Data Split: 80% Training, 20% Testing (stratified)
+- Feature Scaling: StandardScaler (mean=0, std=1)
+- Random State: 42 (for reproducibility)
+
+4. MODELS TRAINED
+-----------------
+a) Logistic Regression
+   - Solver: lbfgs
+   - Max Iterations: 1000
+
+b) Random Forest Classifier
+   - Number of Trees: 100
+   - Criterion: Gini impurity
+
+c) Support Vector Machine (SVM)
+   - Kernel: RBF (Radial Basis Function)
+   - Probability: Enabled
+
+5. EVALUATION METRICS
+---------------------
+
+Logistic Regression:
+   - Accuracy:  71.43%
+   - Precision: 0.6087
+   - Recall:    0.5185
+   - F1-Score:  0.5600
+   - ROC-AUC:   0.8148
+   - Confusion Matrix:
+       TN=82, FP=18
+       FN=26, TP=28
+
+Random Forest:
+   - Accuracy:  73.38%
+   - Precision: 0.6383
+   - Recall:    0.5556
+   - F1-Score:  0.5941
+   - ROC-AUC:   0.8206
+   - Confusion Matrix:
+       TN=83, FP=17
+       FN=24, TP=30
+
+Support Vector Machine:
+   - Accuracy:  74.03%
+   - Precision: 0.6400
+   - Recall:    0.5926
+   - F1-Score:  0.6154
+   - ROC-AUC:   0.7952
+   - Confusion Matrix:
+       TN=82, FP=18
+       FN=22, TP=32
+
+6. BEST MODEL SELECTION
+-----------------------
+Selected Model: Random Forest
+Selection Criterion: Highest ROC-AUC Score
+
+Final Performance Metrics:
+- Accuracy:  73.38%
+- Precision: 0.6383
+- Recall:    0.5556
+- F1-Score:  0.5941
+- ROC-AUC:   0.8206
+
+7. MODEL INTERPRETATION
+-----------------------
+- Accuracy (73.38%): The model correctly predicts diabetes
+  status for approximately 73 out of 100 patients.
+
+- Precision (0.6383): When the model predicts diabetes, it is
+  correct 63.8% of the time.
+
+- Recall (0.5556): The model correctly identifies 55.6%
+  of actual diabetes cases.
+
+- F1-Score (0.5941): Harmonic mean of precision and recall,
+  balancing both metrics.
+
+- ROC-AUC (0.8206): The model has a 82.1% chance of
+  correctly distinguishing between diabetes and non-diabetes cases.
+
+8. NOTES FOR THESIS
+-------------------
+- Model performance is within expected range (65-75% accuracy)
+- Higher accuracy (>85%) would suggest overfitting
+- This is a RISK PREDICTION tool, not a diagnostic system
+- All predictions should be accompanied by appropriate disclaimers
+- Model should be validated with local (Nepal) data if available
+
+================================================================================
+                              END OF REPORT
+================================================================================
