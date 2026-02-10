@@ -1,0 +1,9 @@
+flask
+flask-cors
+paddlepaddle
+paddleocr
+Pillow
+pandas
+numpy
+scikit-learn
+joblib
