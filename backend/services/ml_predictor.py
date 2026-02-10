@@ -409,6 +409,61 @@ def predict_diabetes_risk(input_data: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 
+def predict_diabetes_risk_with_explanation(input_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Predict diabetes risk AND generate SHAP explanation with confidence interval.
+
+    Wraps predict_diabetes_risk() and appends explainability data.
+    """
+    # Get the standard prediction first
+    result = predict_diabetes_risk(input_data)
+    if not result.get('success'):
+        return result
+
+    predictor = get_predictor()
+
+    # Validate and clean inputs (reuse existing logic)
+    _, _, cleaned_data = validate_inputs(input_data)
+
+    try:
+        import numpy as np
+
+        # Reconstruct features in model order (same as predict_diabetes_risk)
+        features = [
+            cleaned_data.get('pregnancies', DEFAULT_VALUES['pregnancies']),
+            cleaned_data['glucose'],
+            cleaned_data['blood_pressure'],
+            cleaned_data.get('skin_thickness', DEFAULT_VALUES['skin_thickness']),
+            cleaned_data.get('insulin', DEFAULT_VALUES['insulin']),
+            cleaned_data['bmi'],
+            cleaned_data.get('diabetes_pedigree', DEFAULT_VALUES['diabetes_pedigree']),
+            cleaned_data['age']
+        ]
+        features_array = np.array(features).reshape(1, -1)
+        scaled_features = predictor.scaler.transform(features_array)
+
+        # Get SHAP explanation
+        from services.explainability_service import get_explainability_service
+        explain_service = get_explainability_service()
+
+        explanation = explain_service.explain_prediction(
+            scaled_features, result['input_values']
+        )
+        confidence_interval = explain_service.compute_confidence_interval(
+            scaled_features
+        )
+
+        result['explanation'] = explanation
+        result['confidence_interval'] = confidence_interval
+
+    except Exception as e:
+        # If explanation fails, still return the prediction
+        result['explanation'] = {'error': f"Explanation unavailable: {str(e)}"}
+        result['confidence_interval'] = {'error': f"Confidence interval unavailable: {str(e)}"}
+
+    return result
+
+
 def get_feature_importance() -> Dict[str, Any]:
     """
     Get feature importance from the trained model.
