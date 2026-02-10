@@ -86,14 +86,24 @@ class ExplainabilityService:
 
         shap_values = self.explainer.shap_values(scaled_features)
 
-        # For binary classification, shap_values is [array_class_0, array_class_1]
+        # SHAP output format depends on version:
+        # - Older: list of [class_0_array, class_1_array], each (n_samples, n_features)
+        # - Newer: ndarray of shape (n_samples, n_features, n_classes)
         # We want class 1 (diabetes risk) contributions
-        if isinstance(shap_values, list):
-            contributions = shap_values[1][0]  # shape: (8,)
-            base_value = float(self.explainer.expected_value[1])
+        shap_arr = np.array(shap_values)
+        if shap_arr.ndim == 3:
+            # Shape: (n_samples, n_features, n_classes)
+            contributions = shap_arr[0, :, 1]  # (8,) for class 1
+        elif isinstance(shap_values, list) and len(shap_values) == 2:
+            contributions = np.array(shap_values[1])[0]
         else:
-            contributions = shap_values[0]
-            base_value = float(self.explainer.expected_value)
+            contributions = np.array(shap_values)[0]
+
+        expected = self.explainer.expected_value
+        if hasattr(expected, '__len__') and len(expected) > 1:
+            base_value = float(expected[1])
+        else:
+            base_value = float(expected)
 
         # Build the reverse mapping from feature name to input field name
         feature_to_input = {v: k for k, v in INPUT_TO_FEATURE.items()}
