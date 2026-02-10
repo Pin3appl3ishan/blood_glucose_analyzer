@@ -6,6 +6,7 @@ import type {
   ManualInputResponse,
   RiskPredictionInput,
   RiskPredictionResponse,
+  RiskPredictionWithExplanation,
   HealthCheckResponse,
   SupportedTestsResponse,
   ThresholdsResponse,
@@ -141,6 +142,26 @@ export async function predictRisk(
     return { success: true, data: response.data };
   } catch (error) {
     return handleApiError<RiskPredictionResponse>(error);
+  }
+}
+
+export async function predictRiskWithExplanation(
+  input: RiskPredictionInput
+): Promise<ApiResponse<RiskPredictionWithExplanation>> {
+  try {
+    const response = await apiClient.post<RiskPredictionWithExplanation>(
+      '/api/predict-risk/explain',
+      input,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    return { success: true, data: response.data };
+  } catch (error) {
+    return handleApiError<RiskPredictionWithExplanation>(error);
   }
 }
 

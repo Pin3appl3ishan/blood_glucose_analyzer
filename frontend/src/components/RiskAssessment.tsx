@@ -12,11 +12,13 @@ import {
   Calendar,
   Sparkles,
 } from 'lucide-react';
-import type { RiskPredictionResponse, ConfidenceLevel } from '../types';
+import type { RiskPredictionResponse, RiskPredictionWithExplanation, ConfidenceLevel } from '../types';
 import { CONFIDENCE_LABELS } from '../types';
+import ShapExplanation from './ShapExplanation';
+import ConfidenceDisplay from './ConfidenceDisplay';
 
 interface RiskAssessmentProps {
-  result: RiskPredictionResponse;
+  result: RiskPredictionResponse | RiskPredictionWithExplanation;
 }
 
 const RISK_CONFIG = {
@@ -103,7 +105,7 @@ const RiskAssessment = ({ result }: RiskAssessmentProps) => {
           <div
             key={i}
             className={`w-1.5 rounded-full transition-all duration-500 ${
-              i <= bars ? 'bg-gradient-to-t from-blue-500 to-blue-400' : 'bg-slate-200'
+              i <= bars ? 'bg-linear-to-t from-blue-500 to-blue-400' : 'bg-slate-200'
             }`}
             style={{
               height: `${6 + i * 5}px`,
@@ -379,6 +381,19 @@ const RiskAssessment = ({ result }: RiskAssessmentProps) => {
           </div>
         </div>
       </div>
+
+      {/* SHAP Explanation */}
+      {'explanation' in result && result.explanation && !result.explanation.error && (
+        <ShapExplanation explanation={result.explanation} />
+      )}
+
+      {/* Confidence Interval */}
+      {'confidence_interval' in result && result.confidence_interval && !result.confidence_interval.error && (
+        <ConfidenceDisplay
+          interval={result.confidence_interval}
+          riskCategory={result.risk_category}
+        />
+      )}
     </div>
   );
 };

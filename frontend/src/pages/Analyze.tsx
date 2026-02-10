@@ -5,7 +5,7 @@ import ManualInputForm from '../components/ManualInputForm';
 import RiskAssessmentForm from '../components/RiskAssessmentForm';
 import ResultsDisplay from '../components/ResultsDisplay';
 import Disclaimer from '../components/Disclaimer';
-import { analyzeImage, analyzeManualInput, predictRisk, getSupportedTests } from '../services/api';
+import { analyzeImage, analyzeManualInput, predictRiskWithExplanation, getSupportedTests } from '../services/api';
 import type {
   AnalysisMode,
   ResultType,
@@ -100,7 +100,7 @@ const Analyze = () => {
     setError(null);
     setResult(null);
 
-    const response = await predictRisk(input);
+    const response = await predictRiskWithExplanation(input);
 
     if (response.success && response.data) {
       setResult({ type: 'risk', data: response.data });

@@ -173,6 +173,46 @@ export interface RiskPredictionResponse {
   message?: string;
 }
 
+// ============================================
+// SHAP Explanation Types
+// ============================================
+export interface FeatureContribution {
+  feature: string;
+  display_name: string;
+  shap_value: number;
+  contribution_pct: number;
+  direction: 'risk' | 'protective';
+  raw_value: number;
+  unit: string;
+  explanation: string;
+}
+
+export interface ShapExplanation {
+  base_value: number;
+  feature_contributions: FeatureContribution[];
+  top_risk_factors: FeatureContribution[];
+  top_protective_factors: FeatureContribution[];
+  plain_english_summary: string;
+  error?: string;
+}
+
+export interface ConfidenceInterval {
+  mean: number;
+  std: number;
+  ci_lower: number;
+  ci_upper: number;
+  ci_lower_pct: number;
+  ci_upper_pct: number;
+  confidence_level: number;
+  tree_count: number;
+  error?: string;
+}
+
+export interface RiskPredictionWithExplanation extends RiskPredictionResponse {
+  explanation: ShapExplanation;
+  confidence_interval: ConfidenceInterval;
+}
+
 export interface InputRequirement {
   name: string;
   unit: string;
@@ -273,7 +313,7 @@ export type AnalysisMode = 'upload' | 'manual' | 'risk';
 export type ResultType =
   | { type: 'analyze'; data: AnalyzeResponse }
   | { type: 'manual'; data: ManualInputResponse }
-  | { type: 'risk'; data: RiskPredictionResponse };
+  | { type: 'risk'; data: RiskPredictionResponse | RiskPredictionWithExplanation };
 
 // ============================================
 // Design System - Colors & Styling
