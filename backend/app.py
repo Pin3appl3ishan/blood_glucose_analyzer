@@ -40,6 +40,8 @@ from services.ml_predictor import (
     check_model_status,
     get_feature_importance
 )
+from services.database_service import get_database_service
+from services.pdf_service import get_pdf_service
 
 
 # Initialize Flask app
@@ -612,6 +614,146 @@ def supported_tests():
             "success": False,
             "error": str(e)
         }), 500
+
+
+# ============================================
+# History & Persistence Endpoints
+# ============================================
+
+@app.route('/api/save-analysis', methods=['POST'])
+def save_analysis():
+    """Save an analysis result to history."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "No JSON data provided"}), 400
+
+        analysis_type = data.get('analysis_type')
+        if analysis_type not in ('ocr', 'manual', 'risk'):
+            return jsonify({
+                "success": False,
+                "error": "analysis_type must be 'ocr', 'manual', or 'risk'"
+            }), 400
+
+        db = get_database_service()
+        result = db.save_analysis(
+            analysis_type=analysis_type,
+            input_data=data.get('input_data'),
+            result_data=data.get('result_data'),
+            test_type=data.get('test_type'),
+            glucose_value=data.get('glucose_value'),
+            classification=data.get('classification'),
+            risk_category=data.get('risk_category'),
+            risk_percentage=data.get('risk_percentage'),
+            label=data.get('label'),
+        )
+
+        if not result.get('success'):
+            return jsonify(result), 500
+
+        return jsonify(result), 201
+
+    except Exception as e:
+        app.logger.error(f"Save analysis error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/history', methods=['GET'])
+def get_history():
+    """Get analysis history with pagination."""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        offset = request.args.get('offset', 0, type=int)
+        analysis_type = request.args.get('type', None)
+
+        db = get_database_service()
+        result = db.get_history(limit=limit, offset=offset, analysis_type=analysis_type)
+        return jsonify(result)
+
+    except Exception as e:
+        app.logger.error(f"Get history error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/history/<analysis_id>', methods=['GET'])
+def get_analysis_detail(analysis_id):
+    """Get a single analysis by ID."""
+    try:
+        db = get_database_service()
+        result = db.get_analysis(analysis_id)
+
+        if not result.get('success'):
+            return jsonify(result), 404
+
+        return jsonify(result)
+
+    except Exception as e:
+        app.logger.error(f"Get analysis error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/history/<analysis_id>', methods=['DELETE'])
+def delete_analysis(analysis_id):
+    """Delete an analysis from history."""
+    try:
+        db = get_database_service()
+        result = db.delete_analysis(analysis_id)
+
+        if not result.get('success'):
+            return jsonify(result), 404
+
+        return jsonify(result)
+
+    except Exception as e:
+        app.logger.error(f"Delete analysis error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/trends', methods=['GET'])
+def get_trends():
+    """Get trend data for glucose value charts."""
+    try:
+        days = request.args.get('days', 30, type=int)
+        test_type = request.args.get('test_type', None)
+
+        db = get_database_service()
+        result = db.get_trend_data(test_type=test_type, days=days)
+        return jsonify(result)
+
+    except Exception as e:
+        app.logger.error(f"Get trends error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================
+# PDF Report Endpoint
+# ============================================
+
+@app.route('/api/report/pdf/<analysis_id>', methods=['GET'])
+def download_pdf_report(analysis_id):
+    """Generate and download a PDF report for a saved analysis."""
+    try:
+        db = get_database_service()
+        result = db.get_analysis(analysis_id)
+
+        if not result.get('success'):
+            return jsonify(result), 404
+
+        pdf_service = get_pdf_service()
+        pdf_bytes = pdf_service.generate_report(result['analysis'])
+
+        from flask import Response
+        return Response(
+            pdf_bytes,
+            mimetype='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename=glucose-report-{analysis_id[:8]}.pdf'
+            }
+        )
+
+    except Exception as e:
+        app.logger.error(f"PDF generation error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================
