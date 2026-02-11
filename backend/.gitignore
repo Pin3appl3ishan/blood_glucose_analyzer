@@ -18,6 +18,9 @@ ENV/
 uploads/*
 !uploads/.gitkeep
 
+# Database
+data/
+
 # IDE
 .vscode/
 .idea/
