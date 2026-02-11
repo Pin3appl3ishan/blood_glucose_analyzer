@@ -139,11 +139,15 @@ const Analyze = () => {
 
       <div className="container mx-auto px-4 py-8 max-w-4xl -mt-8 relative">
         {/* Tab Navigation Card */}
-        <div className="card-elevated p-2 mb-8">
+        <div className="card-elevated p-2 mb-8" role="tablist" aria-label="Analysis mode">
           <div className="grid grid-cols-3 gap-2">
             {TABS.map((tab) => (
               <button
                 key={tab.id}
+                role="tab"
+                aria-selected={mode === tab.id}
+                aria-controls={`panel-${tab.id}`}
+                id={`tab-${tab.id}`}
                 onClick={() => setMode(tab.id)}
                 className={`relative flex flex-col items-center gap-2 py-4 px-3 rounded-xl font-medium transition-all duration-300 ${
                   mode === tab.id
@@ -175,7 +179,12 @@ const Analyze = () => {
         </div>
 
         {/* Main Content Card */}
-        <div className="card-elevated p-8 mb-8">
+        <div
+          className="card-elevated p-8 mb-8"
+          role="tabpanel"
+          id={`panel-${mode}`}
+          aria-labelledby={`tab-${mode}`}
+        >
           {mode === 'upload' && (
             <FileUpload onFileSelect={handleFileAnalysis} isLoading={isLoading} />
           )}
@@ -189,7 +198,7 @@ const Analyze = () => {
 
         {/* Loading State */}
         {isLoading && (
-          <div className="card-elevated p-10 mb-8 animate-fade-in-up">
+          <div className="card-elevated p-10 mb-8 animate-fade-in-up" role="status" aria-live="polite">
             <div className="flex flex-col items-center justify-center">
               <div className="relative mb-6">
                 <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${currentTab.gradient} flex items-center justify-center shadow-lg`}>
@@ -213,7 +222,7 @@ const Analyze = () => {
 
         {/* Error State */}
         {error && !isLoading && (
-          <div className="card-elevated overflow-hidden mb-8 animate-fade-in-up">
+          <div className="card-elevated overflow-hidden mb-8 animate-fade-in-up" role="alert">
             <div className="bg-gradient-to-r from-rose-500 to-red-600 p-4 text-white">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">

@@ -106,9 +106,11 @@ const FileUpload = ({ onFileSelect, isLoading }: FileUploadProps) => {
         <input
           type="file"
           accept={ACCEPTED_EXTENSIONS}
+          capture="environment"
           onChange={handleChange}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           disabled={isLoading}
+          aria-label="Upload lab report image"
         />
 
         <div className="flex flex-col items-center">
