@@ -11,6 +11,9 @@ import {
   Zap,
   Clock,
   Target,
+  Save,
+  FileDown,
+  Check,
 } from 'lucide-react';
 import type {
   ResultType,
@@ -19,8 +22,11 @@ import type {
   ClassificationResult,
   TestType,
   ClassificationType,
+  SaveAnalysisRequest,
 } from '../types';
 import { TEST_TYPE_LABELS } from '../types';
+import { saveAnalysis } from '../services/api';
+import { API_BASE_URL } from '../services/api';
 import GaugeChart from './GaugeChart';
 import RiskAssessment from './RiskAssessment';
 
@@ -29,17 +35,100 @@ interface ResultsDisplayProps {
 }
 
 const ResultsDisplay = ({ result }: ResultsDisplayProps) => {
-  if (result.type === 'analyze') {
-    return <AnalyzeResultsDisplay data={result.data} />;
-  }
+  return (
+    <div className="space-y-6">
+      {result.type === 'analyze' && <AnalyzeResultsDisplay data={result.data} />}
+      {result.type === 'manual' && <ManualResultDisplay data={result.data} />}
+      {result.type === 'risk' && <RiskAssessment result={result.data} />}
+      <SaveBar result={result} />
+    </div>
+  );
+};
+
+// ============================================
+// Save & Download Bar
+// ============================================
+const SaveBar = ({ result }: { result: ResultType }) => {
+  const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const payload = buildSavePayload(result);
+    const res = await saveAnalysis(payload);
+    if (res.success && res.data) {
+      setSavedId(res.data.id);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="flex items-center justify-end gap-2 pt-2">
+      {!savedId ? (
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 transition-colors"
+        >
+          <Save className="w-3.5 h-3.5" />
+          {saving ? 'Saving...' : 'Save to History'}
+        </button>
+      ) : (
+        <>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-emerald-600 rounded-lg border border-emerald-200 ">
+            <Check className="w-3.5 h-3.5" />
+            Saved
+          </span>
+          <a
+            href={`${API_BASE_URL}/api/report/pdf/${savedId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            Download PDF
+          </a>
+        </>
+      )}
+    </div>
+  );
+};
+
+function buildSavePayload(result: ResultType): SaveAnalysisRequest {
   if (result.type === 'manual') {
-    return <ManualResultDisplay data={result.data} />;
+    const c = result.data.classification;
+    return {
+      analysis_type: 'manual',
+      input_data: result.data.input,
+      result_data: result.data,
+      test_type: c.test_type,
+      glucose_value: c.value,
+      classification: c.classification,
+    };
   }
   if (result.type === 'risk') {
-    return <RiskAssessment result={result.data} />;
+    const d = result.data;
+    return {
+      analysis_type: 'risk',
+      input_data: d.input_values,
+      result_data: d,
+      glucose_value: d.input_values.glucose,
+      risk_category: d.risk_category,
+      risk_percentage: d.risk_percentage,
+    };
   }
-  return null;
-};
+  // OCR
+  const d = result.data;
+  const firstClassification = d.classifications?.[0]?.classification;
+  return {
+    analysis_type: 'ocr',
+    input_data: { detected_values: d.detected_values },
+    result_data: d,
+    test_type: firstClassification?.test_type,
+    glucose_value: firstClassification?.value,
+    classification: firstClassification?.classification,
+  };
+}
 
 // ============================================
 // Status Badge Component
