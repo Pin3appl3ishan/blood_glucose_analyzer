@@ -373,3 +373,57 @@ export const CONFIDENCE_LABELS: Record<ConfidenceLevel, string> = {
   moderate: 'Moderate Confidence',
   high: 'High Confidence',
 };
+
+// ============================================
+// History & Trends Types
+// ============================================
+export interface AnalysisHistoryItem {
+  id: string;
+  analysis_type: 'ocr' | 'manual' | 'risk';
+  created_at: string;
+  test_type?: string;
+  glucose_value?: number;
+  classification?: string;
+  risk_category?: string;
+  risk_percentage?: number;
+  label?: string;
+}
+
+export interface HistoryResponse {
+  success: boolean;
+  analyses: AnalysisHistoryItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface TrendDataPoint {
+  date: string;
+  value: number;
+  test_type: string;
+  classification: string;
+}
+
+export interface TrendResponse {
+  success: boolean;
+  data_points: TrendDataPoint[];
+  count: number;
+}
+
+export interface SaveAnalysisRequest {
+  analysis_type: 'ocr' | 'manual' | 'risk';
+  input_data: unknown;
+  result_data: unknown;
+  test_type?: string;
+  glucose_value?: number;
+  classification?: string;
+  risk_category?: string;
+  risk_percentage?: number;
+  label?: string;
+}
+
+export interface SaveAnalysisResponse {
+  success: boolean;
+  id: string;
+  created_at: string;
+}

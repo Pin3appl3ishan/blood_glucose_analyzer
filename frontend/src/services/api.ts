@@ -12,6 +12,10 @@ import type {
   ThresholdsResponse,
   PredictionRequirementsResponse,
   ApiResponse,
+  HistoryResponse,
+  SaveAnalysisRequest,
+  SaveAnalysisResponse,
+  TrendResponse,
 } from '../types';
 
 // ============================================
@@ -200,6 +204,56 @@ export async function getThresholds(): Promise<ApiResponse<ThresholdsResponse>> 
 }
 
 // ============================================
+// History & Persistence
+// ============================================
+export async function saveAnalysis(
+  data: SaveAnalysisRequest
+): Promise<ApiResponse<SaveAnalysisResponse>> {
+  try {
+    const response = await apiClient.post<SaveAnalysisResponse>('/api/save-analysis', data, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    return handleApiError<SaveAnalysisResponse>(error);
+  }
+}
+
+export async function getHistory(params?: {
+  limit?: number;
+  offset?: number;
+  type?: string;
+}): Promise<ApiResponse<HistoryResponse>> {
+  try {
+    const response = await apiClient.get<HistoryResponse>('/api/history', { params });
+    return { success: true, data: response.data };
+  } catch (error) {
+    return handleApiError<HistoryResponse>(error);
+  }
+}
+
+export async function deleteAnalysis(id: string): Promise<ApiResponse<{ success: boolean }>> {
+  try {
+    const response = await apiClient.delete<{ success: boolean }>(`/api/history/${id}`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    return handleApiError<{ success: boolean }>(error);
+  }
+}
+
+export async function getTrends(params?: {
+  days?: number;
+  test_type?: string;
+}): Promise<ApiResponse<TrendResponse>> {
+  try {
+    const response = await apiClient.get<TrendResponse>('/api/trends', { params });
+    return { success: true, data: response.data };
+  } catch (error) {
+    return handleApiError<TrendResponse>(error);
+  }
+}
+
+// ============================================
 // Export client for custom requests
 // ============================================
-export { apiClient };
+export { apiClient, API_BASE_URL };
