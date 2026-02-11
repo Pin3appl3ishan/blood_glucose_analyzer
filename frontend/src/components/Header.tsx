@@ -1,10 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Activity, Menu, X, Sparkles } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 
 const NAV_LINKS = [
   { path: '/', label: 'Home' },
   { path: '/analyze', label: 'Analyze' },
+  { path: '/history', label: 'History' },
   { path: '/about', label: 'About' },
 ];
 
@@ -12,6 +13,8 @@ const Header = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const navRef = useRef<HTMLUListElement>(null);
+  const [indicator, setIndicator] = useState({ left: 0, width: 0, ready: false });
 
   useEffect(() => {
     const handleScroll = () => {
@@ -20,6 +23,18 @@ const Header = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!navRef.current) return;
+    const activeLink = navRef.current.querySelector('[data-active="true"]') as HTMLElement;
+    if (activeLink) {
+      setIndicator({
+        left: activeLink.offsetLeft,
+        width: activeLink.offsetWidth,
+        ready: true,
+      });
+    }
+  }, [location.pathname]);
 
   return (
     <header
@@ -53,14 +68,26 @@ const Header = () => {
           </Link>
 
           {/* Desktop Navigation */}
-          <ul className="hidden md:flex items-center gap-1 bg-slate-100/80 rounded-full p-1">
+          <ul ref={navRef} className="hidden md:flex items-center gap-1 bg-slate-100/80 rounded-full p-1.5 relative">
+            {/* Sliding glassmorphic indicator */}
+            {indicator.ready && (
+              <div
+                className="absolute top-1.5 bottom-1.5 bg-white/80 backdrop-blur-xl rounded-full shadow-lg shadow-blue-500/10 border border-white/70 ring-1 ring-black/[0.04] transition-all duration-300 pointer-events-none"
+                style={{
+                  left: indicator.left,
+                  width: indicator.width,
+                  transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+              />
+            )}
             {NAV_LINKS.map((link) => (
               <li key={link.path}>
                 <Link
                   to={link.path}
-                  className={`relative px-5 py-2 rounded-full font-medium text-sm transition-all ${
+                  data-active={location.pathname === link.path}
+                  className={`relative z-10 px-5 py-3 rounded-full font-medium text-sm transition-colors duration-200 ${
                     location.pathname === link.path
-                      ? 'bg-white text-blue-600 shadow-sm'
+                      ? 'text-blue-600'
                       : 'text-slate-600 hover:text-slate-800'
                   }`}
                 >
@@ -82,7 +109,9 @@ const Header = () => {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors"
+            className="md:hidden p-3 rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors"
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? (
               <X className="w-5 h-5 text-slate-700" />
