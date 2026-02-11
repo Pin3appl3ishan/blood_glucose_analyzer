@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Upload, X, ImageIcon, CheckCircle, Sparkles, Zap } from 'lucide-react';
 
 interface FileUploadProps {
@@ -12,18 +12,21 @@ const MAX_FILE_SIZE = 16 * 1024 * 1024; // 16MB
 
 const FileUpload = ({ onFileSelect, isLoading }: FileUploadProps) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const previewUrl = useMemo(() => {
     if (selectedFile && selectedFile.type.startsWith('image/')) {
-      const url = URL.createObjectURL(selectedFile);
-      setPreviewUrl(url);
-      return () => URL.revokeObjectURL(url);
+      return URL.createObjectURL(selectedFile);
     }
-    setPreviewUrl(null);
+    return null;
   }, [selectedFile]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const validateFile = (file: File): string | null => {
     if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -80,7 +83,6 @@ const FileUpload = ({ onFileSelect, isLoading }: FileUploadProps) => {
 
   const clearFile = () => {
     setSelectedFile(null);
-    setPreviewUrl(null);
     setError(null);
   };
 
