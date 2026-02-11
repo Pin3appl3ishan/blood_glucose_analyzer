@@ -11,9 +11,10 @@ Flask backend that provides:
 import os
 import uuid
 from datetime import datetime
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+from flasgger import Swagger
 
 # Import configuration
 from config import Config
@@ -49,7 +50,52 @@ app = Flask(__name__)
 app.config.from_object(Config)
 
 # Enable CORS for all routes
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": Config.CORS_ORIGINS}})
+
+# Initialize Swagger / Flasgger
+swagger_template = {
+    "swagger": "2.0",
+    "info": {
+        "title": "Blood Glucose Analyzer API",
+        "description": (
+            "AI-powered API for analyzing blood glucose reports and predicting diabetes risk.\n\n"
+            "**Features:**\n"
+            "- OCR extraction from lab report images (PaddleOCR)\n"
+            "- ADA guideline-based glucose classification\n"
+            "- ML diabetes risk prediction with SHAP explanations\n"
+            "- Analysis history and trend tracking\n"
+            "- PDF report generation"
+        ),
+        "version": "1.0.0",
+        "contact": {"name": "Ishan"},
+    },
+    "basePath": "/",
+    "schemes": ["http", "https"],
+    "tags": [
+        {"name": "Health", "description": "Service health and status checks"},
+        {"name": "Analysis", "description": "Image upload and OCR-based analysis"},
+        {"name": "Classification", "description": "Manual glucose value classification"},
+        {"name": "Risk Prediction", "description": "ML-based diabetes risk prediction"},
+        {"name": "Reference", "description": "Thresholds and supported test types"},
+        {"name": "History", "description": "Analysis history and trend data"},
+        {"name": "Reports", "description": "PDF report generation"},
+    ],
+}
+swagger_config = {
+    "headers": [],
+    "specs": [
+        {
+            "endpoint": "apispec",
+            "route": "/apispec.json",
+            "rule_filter": lambda rule: True,
+            "model_filter": lambda tag: True,
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/api/docs/",
+}
+Swagger(app, template=swagger_template, config=swagger_config)
 
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -83,7 +129,28 @@ def cleanup_file(filepath):
 
 @app.route('/')
 def index():
-    """Basic health check endpoint."""
+    """Basic health check
+    ---
+    tags:
+      - Health
+    summary: Basic health check
+    description: Returns API status, name, and version.
+    responses:
+      200:
+        description: API is running
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              example: running
+            message:
+              type: string
+              example: Blood Glucose Analyzer API
+            version:
+              type: string
+              example: 1.0.0
+    """
     return jsonify({
         "status": "running",
         "message": "Blood Glucose Analyzer API",
@@ -93,7 +160,47 @@ def index():
 
 @app.route('/api/health')
 def health_check():
-    """Detailed system health check."""
+    """Detailed system health check
+    ---
+    tags:
+      - Health
+    summary: Detailed system health check
+    description: Checks OCR service, ML model, and uploads folder status.
+    responses:
+      200:
+        description: Health status report
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [healthy, degraded]
+            timestamp:
+              type: string
+              format: date-time
+            services:
+              type: object
+              properties:
+                ocr:
+                  type: object
+                  properties:
+                    initialized:
+                      type: boolean
+                ml_model:
+                  type: object
+                  properties:
+                    initialized:
+                      type: boolean
+                uploads:
+                  type: object
+                  properties:
+                    exists:
+                      type: boolean
+                    writable:
+                      type: boolean
+      500:
+        description: Health check error
+    """
     try:
         # Check OCR service
         ocr_service = get_ocr_service()
@@ -148,7 +255,38 @@ def health_check():
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
-    """Handle image file upload."""
+    """Upload an image file
+    ---
+    tags:
+      - Analysis
+    summary: Upload an image file
+    description: Uploads a lab report image and returns the saved filename.
+    consumes:
+      - multipart/form-data
+    parameters:
+      - name: file
+        in: formData
+        type: file
+        required: true
+        description: Lab report image (PNG, JPG, JPEG, GIF, BMP). Max 16MB.
+    responses:
+      200:
+        description: File uploaded successfully
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            filename:
+              type: string
+            original_filename:
+              type: string
+      400:
+        description: Missing file or invalid file type
+      500:
+        description: Server error
+    """
     try:
         if 'file' not in request.files:
             return jsonify({
@@ -200,15 +338,61 @@ def upload_file():
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze_report():
-    """
-    Analyze uploaded lab report image.
-
-    Pipeline:
-    1. Save uploaded image
-    2. Extract text using OCR
-    3. Validate as glucose report
-    4. Extract and classify glucose values
-    5. Return comprehensive analysis
+    """Analyze a lab report image (OCR + classification)
+    ---
+    tags:
+      - Analysis
+    summary: Analyze a lab report image
+    description: |
+      Full analysis pipeline:
+      1. Save uploaded image
+      2. Extract text using PaddleOCR
+      3. Validate as a glucose report
+      4. Extract and classify glucose values per ADA guidelines
+    consumes:
+      - multipart/form-data
+    parameters:
+      - name: file
+        in: formData
+        type: file
+        required: true
+        description: Lab report image (PNG, JPG, JPEG, GIF, BMP). Max 16MB.
+    responses:
+      200:
+        description: Analysis result
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            is_valid_report:
+              type: boolean
+            extracted_text:
+              type: string
+            detected_values:
+              type: array
+              items:
+                type: object
+                properties:
+                  test_type:
+                    type: string
+                  value:
+                    type: number
+                  unit:
+                    type: string
+            classifications:
+              type: array
+              items:
+                type: object
+            summary:
+              type: string
+            analysis_timestamp:
+              type: string
+              format: date-time
+      400:
+        description: No file provided, invalid type, or OCR extraction failed
+      500:
+        description: Server error
     """
     filepath = None
 
@@ -341,15 +525,63 @@ def analyze_report():
 
 @app.route('/api/manual-input', methods=['POST'])
 def manual_input():
-    """
-    Handle manual glucose value input for classification.
-
-    Expected JSON:
-    {
-        "test_type": "fasting",
-        "value": 105,
-        "unit": "mg/dL"
-    }
+    """Classify a single glucose value
+    ---
+    tags:
+      - Classification
+    summary: Classify a single glucose value
+    description: Classifies a manually entered glucose value using ADA guidelines.
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - test_type
+            - value
+          properties:
+            test_type:
+              type: string
+              enum: [fasting, hba1c, ppbs, rbs, ogtt]
+              example: fasting
+            value:
+              type: number
+              example: 105
+            unit:
+              type: string
+              default: mg/dL
+              example: mg/dL
+    responses:
+      200:
+        description: Classification result
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            input:
+              type: object
+            classification:
+              type: object
+              properties:
+                classification:
+                  type: string
+                  enum: [Normal, Low, Prediabetes, Needs Monitoring, Diabetes]
+                severity:
+                  type: string
+                value:
+                  type: number
+                unit:
+                  type: string
+                recommendation:
+                  type: string
+      400:
+        description: Missing fields or invalid value
+      500:
+        description: Server error
     """
     try:
         data = request.get_json()
@@ -413,16 +645,60 @@ def manual_input():
 
 @app.route('/api/manual-input/batch', methods=['POST'])
 def manual_input_batch():
-    """
-    Handle multiple manual glucose value inputs.
-
-    Expected JSON:
-    {
-        "readings": [
-            {"test_type": "fasting", "value": 105, "unit": "mg/dL"},
-            {"test_type": "hba1c", "value": 6.2, "unit": "%"}
-        ]
-    }
+    """Classify multiple glucose values in one request
+    ---
+    tags:
+      - Classification
+    summary: Batch classify glucose values
+    description: Classifies multiple glucose readings in a single request.
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - readings
+          properties:
+            readings:
+              type: array
+              items:
+                type: object
+                required:
+                  - test_type
+                  - value
+                properties:
+                  test_type:
+                    type: string
+                    enum: [fasting, hba1c, ppbs, rbs, ogtt]
+                  value:
+                    type: number
+                  unit:
+                    type: string
+                    default: mg/dL
+              example:
+                - test_type: fasting
+                  value: 105
+                  unit: mg/dL
+                - test_type: hba1c
+                  value: 6.2
+                  unit: "%"
+    responses:
+      200:
+        description: Batch classification results
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            input_count:
+              type: integer
+      400:
+        description: Missing or empty readings array
+      500:
+        description: Server error
     """
     try:
         data = request.get_json()
@@ -464,20 +740,79 @@ def manual_input_batch():
 
 @app.route('/api/predict-risk', methods=['POST'])
 def predict_risk():
-    """
-    Predict diabetes risk using ML model.
-
-    Expected JSON:
-    {
-        "glucose": 105,
-        "bmi": 25.5,
-        "age": 45,
-        "blood_pressure": 80,
-        "insulin": 100,          // optional
-        "skin_thickness": 20,    // optional
-        "pregnancies": 2,        // optional
-        "diabetes_pedigree": 0.5 // optional
-    }
+    """Predict diabetes risk
+    ---
+    tags:
+      - Risk Prediction
+    summary: Predict diabetes risk using ML model
+    description: |
+      Uses a Random Forest model trained on the PIMA Indians Diabetes Dataset
+      to predict diabetes risk. Returns risk percentage and category
+      (Low / Moderate / High).
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - glucose
+            - bmi
+            - age
+            - blood_pressure
+          properties:
+            glucose:
+              type: number
+              description: Plasma glucose concentration (mg/dL)
+              example: 105
+            bmi:
+              type: number
+              description: Body mass index (kg/m^2)
+              example: 25.5
+            age:
+              type: integer
+              description: Age in years
+              example: 45
+            blood_pressure:
+              type: number
+              description: Diastolic blood pressure (mm Hg)
+              example: 80
+            insulin:
+              type: number
+              description: 2-hour serum insulin (mu U/ml, optional)
+              example: 100
+            skin_thickness:
+              type: number
+              description: Triceps skin fold thickness (mm, optional)
+              example: 20
+            pregnancies:
+              type: integer
+              description: Number of pregnancies (optional)
+              example: 2
+            diabetes_pedigree:
+              type: number
+              description: Diabetes pedigree function (optional)
+              example: 0.5
+    responses:
+      200:
+        description: Risk prediction result
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            risk_percentage:
+              type: number
+              example: 67
+            risk_category:
+              type: string
+              enum: [Low, Moderate, High]
+      400:
+        description: Validation error
+      500:
+        description: Server error
     """
     try:
         data = request.get_json()
@@ -506,7 +841,23 @@ def predict_risk():
 
 @app.route('/api/predict-risk/requirements', methods=['GET'])
 def prediction_requirements():
-    """Get input requirements for risk prediction."""
+    """Get input requirements for risk prediction
+    ---
+    tags:
+      - Risk Prediction
+    summary: Get prediction input requirements
+    description: Returns required and optional input fields with their ranges and descriptions.
+    responses:
+      200:
+        description: Input requirements
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+      500:
+        description: Server error
+    """
     try:
         return jsonify({
             "success": True,
@@ -521,7 +872,23 @@ def prediction_requirements():
 
 @app.route('/api/predict-risk/thresholds', methods=['GET'])
 def prediction_thresholds():
-    """Get risk category thresholds."""
+    """Get risk category thresholds
+    ---
+    tags:
+      - Risk Prediction
+    summary: Get risk category thresholds
+    description: Returns the percentage boundaries for Low, Moderate, and High risk categories.
+    responses:
+      200:
+        description: Risk thresholds
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+      500:
+        description: Server error
+    """
     try:
         return jsonify({
             "success": True,
@@ -536,7 +903,18 @@ def prediction_thresholds():
 
 @app.route('/api/predict-risk/feature-importance', methods=['GET'])
 def feature_importance():
-    """Get feature importance from the ML model."""
+    """Get feature importance from the ML model
+    ---
+    tags:
+      - Risk Prediction
+    summary: Get feature importance
+    description: Returns the feature importance scores from the trained Random Forest model.
+    responses:
+      200:
+        description: Feature importance data
+      500:
+        description: Server error
+    """
     try:
         result = get_feature_importance()
         return jsonify(result)
@@ -549,12 +927,75 @@ def feature_importance():
 
 @app.route('/api/predict-risk/explain', methods=['POST'])
 def predict_risk_with_explanation():
-    """
-    Predict diabetes risk with SHAP-based explanation and confidence interval.
-
-    Same input as /api/predict-risk, but response includes:
-    - explanation: SHAP feature contributions with plain English summaries
-    - confidence_interval: prediction uncertainty range from RF tree variance
+    """Predict diabetes risk with SHAP explanation
+    ---
+    tags:
+      - Risk Prediction
+    summary: Predict risk with SHAP explanation
+    description: |
+      Same input as /api/predict-risk but additionally returns:
+      - SHAP feature contributions with plain-English summaries
+      - Confidence interval from Random Forest tree variance
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - glucose
+            - bmi
+            - age
+            - blood_pressure
+          properties:
+            glucose:
+              type: number
+              example: 105
+            bmi:
+              type: number
+              example: 25.5
+            age:
+              type: integer
+              example: 45
+            blood_pressure:
+              type: number
+              example: 80
+            insulin:
+              type: number
+            skin_thickness:
+              type: number
+            pregnancies:
+              type: integer
+            diabetes_pedigree:
+              type: number
+    responses:
+      200:
+        description: Prediction with explanation
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            risk_percentage:
+              type: number
+            risk_category:
+              type: string
+            explanation:
+              type: object
+              description: SHAP feature contributions
+            confidence_interval:
+              type: object
+              properties:
+                lower:
+                  type: number
+                upper:
+                  type: number
+      400:
+        description: Validation error
+      500:
+        description: Server error
     """
     try:
         data = request.get_json()
@@ -586,7 +1027,23 @@ def predict_risk_with_explanation():
 
 @app.route('/api/thresholds', methods=['GET'])
 def thresholds():
-    """Get all glucose classification thresholds."""
+    """Get glucose classification thresholds
+    ---
+    tags:
+      - Reference
+    summary: Get ADA classification thresholds
+    description: Returns classification thresholds for all supported glucose test types (fasting, hba1c, ppbs, rbs, ogtt).
+    responses:
+      200:
+        description: Threshold data for each test type
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+      500:
+        description: Server error
+    """
     try:
         result = get_all_thresholds()
         return jsonify({
@@ -602,7 +1059,23 @@ def thresholds():
 
 @app.route('/api/supported-tests', methods=['GET'])
 def supported_tests():
-    """Get list of supported glucose test types."""
+    """Get supported glucose test types
+    ---
+    tags:
+      - Reference
+    summary: Get supported test types
+    description: Returns the list of glucose test types the system can classify (fasting, hba1c, ppbs, rbs, ogtt).
+    responses:
+      200:
+        description: Supported test types
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+      500:
+        description: Server error
+    """
     try:
         result = get_supported_report_types()
         return jsonify({
@@ -622,7 +1095,61 @@ def supported_tests():
 
 @app.route('/api/save-analysis', methods=['POST'])
 def save_analysis():
-    """Save an analysis result to history."""
+    """Save an analysis result to history
+    ---
+    tags:
+      - History
+    summary: Save analysis to history
+    description: Persists an analysis result (OCR, manual, or risk) to the database.
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - analysis_type
+          properties:
+            analysis_type:
+              type: string
+              enum: [ocr, manual, risk]
+              example: manual
+            input_data:
+              type: object
+            result_data:
+              type: object
+            test_type:
+              type: string
+            glucose_value:
+              type: number
+            classification:
+              type: string
+            risk_category:
+              type: string
+            risk_percentage:
+              type: number
+            label:
+              type: string
+    responses:
+      201:
+        description: Analysis saved
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            id:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+      400:
+        description: Invalid analysis_type
+      500:
+        description: Server error
+    """
     try:
         data = request.get_json()
         if not data:
@@ -660,7 +1187,49 @@ def save_analysis():
 
 @app.route('/api/history', methods=['GET'])
 def get_history():
-    """Get analysis history with pagination."""
+    """Get analysis history
+    ---
+    tags:
+      - History
+    summary: Get analysis history with pagination
+    description: Returns a paginated list of saved analyses, optionally filtered by type.
+    parameters:
+      - name: limit
+        in: query
+        type: integer
+        default: 50
+        description: Maximum number of results
+      - name: offset
+        in: query
+        type: integer
+        default: 0
+        description: Number of results to skip
+      - name: type
+        in: query
+        type: string
+        enum: [ocr, manual, risk]
+        description: Filter by analysis type
+    responses:
+      200:
+        description: Paginated history
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            analyses:
+              type: array
+              items:
+                type: object
+            total:
+              type: integer
+            limit:
+              type: integer
+            offset:
+              type: integer
+      500:
+        description: Server error
+    """
     try:
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
@@ -677,7 +1246,26 @@ def get_history():
 
 @app.route('/api/history/<analysis_id>', methods=['GET'])
 def get_analysis_detail(analysis_id):
-    """Get a single analysis by ID."""
+    """Get a single analysis by ID
+    ---
+    tags:
+      - History
+    summary: Get analysis detail
+    description: Returns full details of a single saved analysis.
+    parameters:
+      - name: analysis_id
+        in: path
+        type: string
+        required: true
+        description: Analysis UUID
+    responses:
+      200:
+        description: Analysis detail
+      404:
+        description: Analysis not found
+      500:
+        description: Server error
+    """
     try:
         db = get_database_service()
         result = db.get_analysis(analysis_id)
@@ -694,7 +1282,26 @@ def get_analysis_detail(analysis_id):
 
 @app.route('/api/history/<analysis_id>', methods=['DELETE'])
 def delete_analysis(analysis_id):
-    """Delete an analysis from history."""
+    """Delete an analysis from history
+    ---
+    tags:
+      - History
+    summary: Delete an analysis
+    description: Permanently removes an analysis from history.
+    parameters:
+      - name: analysis_id
+        in: path
+        type: string
+        required: true
+        description: Analysis UUID
+    responses:
+      200:
+        description: Analysis deleted
+      404:
+        description: Analysis not found
+      500:
+        description: Server error
+    """
     try:
         db = get_database_service()
         result = db.delete_analysis(analysis_id)
@@ -711,7 +1318,47 @@ def delete_analysis(analysis_id):
 
 @app.route('/api/trends', methods=['GET'])
 def get_trends():
-    """Get trend data for glucose value charts."""
+    """Get glucose trend data
+    ---
+    tags:
+      - History
+    summary: Get trend data for charts
+    description: Returns glucose values over time for trend visualization, optionally filtered by test type and date range.
+    parameters:
+      - name: days
+        in: query
+        type: integer
+        default: 30
+        description: Number of days to look back
+      - name: test_type
+        in: query
+        type: string
+        enum: [fasting, hba1c, ppbs, rbs, ogtt]
+        description: Filter by test type
+    responses:
+      200:
+        description: Trend data points
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            data_points:
+              type: array
+              items:
+                type: object
+                properties:
+                  date:
+                    type: string
+                  value:
+                    type: number
+                  test_type:
+                    type: string
+            count:
+              type: integer
+      500:
+        description: Server error
+    """
     try:
         days = request.args.get('days', 30, type=int)
         test_type = request.args.get('test_type', None)
@@ -731,7 +1378,30 @@ def get_trends():
 
 @app.route('/api/report/pdf/<analysis_id>', methods=['GET'])
 def download_pdf_report(analysis_id):
-    """Generate and download a PDF report for a saved analysis."""
+    """Download PDF report
+    ---
+    tags:
+      - Reports
+    summary: Generate and download a PDF report
+    description: Generates a PDF report for a previously saved analysis and returns it as a download.
+    produces:
+      - application/pdf
+    parameters:
+      - name: analysis_id
+        in: path
+        type: string
+        required: true
+        description: Analysis UUID
+    responses:
+      200:
+        description: PDF file
+        schema:
+          type: file
+      404:
+        description: Analysis not found
+      500:
+        description: PDF generation error
+    """
     try:
         db = get_database_service()
         result = db.get_analysis(analysis_id)
@@ -742,7 +1412,6 @@ def download_pdf_report(analysis_id):
         pdf_service = get_pdf_service()
         pdf_bytes = pdf_service.generate_report(result['analysis'])
 
-        from flask import Response
         return Response(
             pdf_bytes,
             mimetype='application/pdf',
